@@ -1,0 +1,17 @@
+# Rust
+target/
+Cargo.lock
+
+# Node
+node_modules/
+dist/
+.env
+.env.local
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# OS
+.DS_Store
