@@ -29,6 +29,8 @@ pub struct StartRunPayload {
     pub startup_variable_values: Option<HashMap<String, String>>,
 }
 
+/// Creates the run record and returns a run_id.
+/// Execution is deferred to stream_run so events can be streamed in real time.
 async fn start_run(
     State(pool): State<SqlitePool>,
     Path(workflow_id): Path<String>,
@@ -51,44 +53,17 @@ async fn start_run(
     .await
     .unwrap();
 
-    // Spawn the run in the background and persist results when done
-    let pool_clone = pool.clone();
-    let run_id_clone = run_id.clone();
-    let workflow_id_clone = workflow_id.clone();
-    let startup_vars_clone = startup_vars;
-
-    tokio::spawn(async move {
-        let (tx, _rx) = mpsc::channel(100);
-        let results = run_workflow(&pool_clone, &workflow_id_clone, startup_vars_clone, tx).await;
-        let results_json = serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string());
-        let final_status = if results.iter().any(|r| r.status == "failed") {
-            "FAILED"
-        } else {
-            "PASSED"
-        };
-        let finished_at = Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE workflow_runs SET status=?, finished_at=?, step_results=? WHERE id=?",
-        )
-        .bind(final_status)
-        .bind(finished_at)
-        .bind(results_json)
-        .bind(&run_id_clone)
-        .execute(&pool_clone)
-        .await
-        .unwrap();
-    });
-
     (StatusCode::CREATED, Json(serde_json::json!({ "run_id": run_id })))
 }
 
+/// SSE endpoint: executes the workflow and streams RunEvents in real time.
+/// Also updates the DB record with final status and step_results on completion.
 async fn stream_run(
     State(pool): State<SqlitePool>,
     Path(run_id): Path<String>,
 ) -> Sse<impl futures::stream::Stream<Item = Result<Event, Infallible>>> {
     let (tx, rx) = mpsc::channel::<RunEvent>(100);
 
-    // Fetch run details to kick off execution
     let run_row = sqlx::query_as::<_, (String, String, String)>(
         "SELECT workflow_id, startup_variable_values, status FROM workflow_runs WHERE id = ?",
     )
@@ -101,8 +76,28 @@ async fn stream_run(
         let startup_vars: HashMap<String, String> =
             serde_json::from_str(&vars_json).unwrap_or_default();
         let pool_clone = pool.clone();
+        let run_id_clone = run_id.clone();
+
         tokio::spawn(async move {
-            run_workflow(&pool_clone, &workflow_id, startup_vars, tx).await;
+            let results = run_workflow(&pool_clone, &workflow_id, startup_vars, tx).await;
+            // Persist final results
+            let results_json = serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string());
+            let final_status = if results.iter().any(|r| r.status == "failed") {
+                "FAILED"
+            } else {
+                "PASSED"
+            };
+            let finished_at = Utc::now().to_rfc3339();
+            sqlx::query(
+                "UPDATE workflow_runs SET status=?, finished_at=?, step_results=? WHERE id=?",
+            )
+            .bind(final_status)
+            .bind(finished_at)
+            .bind(results_json)
+            .bind(&run_id_clone)
+            .execute(&pool_clone)
+            .await
+            .unwrap();
         });
     }
 
@@ -185,7 +180,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_start_run_creates_record() {
+    async fn test_start_run_only_creates_record() {
         let pool = test_pool().await;
         let app = Router::new().nest("/api", router()).with_state(pool.clone());
         let server = TestServer::new(app).unwrap();
@@ -199,12 +194,16 @@ mod tests {
         let run_id = body["run_id"].as_str().unwrap().to_string();
         assert!(!run_id.is_empty());
 
-        // Verify the run record exists in DB
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        let res = server.get(&format!("/api/runs/{}", run_id)).await;
-        res.assert_status_ok();
-        let run: Value = res.json();
-        assert_eq!(run["id"], run_id);
+        // Run record should exist with RUNNING status (no execution started yet)
+        let run_row: Option<(String,)> = sqlx::query_as(
+            "SELECT status FROM workflow_runs WHERE id = ?"
+        )
+        .bind(&run_id)
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        assert!(run_row.is_some());
+        assert_eq!(run_row.unwrap().0, "RUNNING");
     }
 
     #[tokio::test]
@@ -213,13 +212,10 @@ mod tests {
         let app = Router::new().nest("/api", router()).with_state(pool.clone());
         let server = TestServer::new(app).unwrap();
 
-        // Start two runs
         server.post("/api/workflows/w1/run")
             .json(&serde_json::json!({})).await;
         server.post("/api/workflows/w1/run")
             .json(&serde_json::json!({})).await;
-
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         let res = server.get("/api/workflows/w1/runs").await;
         res.assert_status_ok();
