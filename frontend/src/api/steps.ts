@@ -23,6 +23,6 @@ export const stepsApi = {
   create: (workflowId: string, name: string) =>
     api.post<Step>(`/api/workflows/${workflowId}/steps`, { name }).then(r => r.data),
   update: (id: string, data: Partial<Step>) =>
-    api.put(`/api/steps/${id}`, data),
+    api.put(`/api/steps/${id}`, data).then(r => r.data),
   delete: (id: string) => api.delete(`/api/steps/${id}`),
 }

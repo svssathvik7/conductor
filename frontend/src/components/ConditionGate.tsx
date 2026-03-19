@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Condition } from '../api/conditions'
 
 interface Props {
@@ -11,6 +11,11 @@ export function ConditionGate({ condition, onSave, onDelete }: Props) {
   const [editing, setEditing] = useState(false)
   const [expr, setExpr] = useState(condition?.expression ?? '')
   const [action, setAction] = useState(condition?.action ?? 'FAIL')
+
+  useEffect(() => {
+    setExpr(condition?.expression ?? '')
+    setAction(condition?.action ?? 'FAIL')
+  }, [condition?.id])
 
   if (!condition && !editing) {
     return (

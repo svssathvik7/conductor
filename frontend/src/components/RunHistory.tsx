@@ -10,7 +10,12 @@ export function RunHistory() {
   const { data: runs = [] } = useQuery<RunResult[]>({
     queryKey: ['runs', workflowId],
     queryFn: () => runsApi.list(workflowId!),
-    refetchInterval: 5000,
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (!data) return 5000
+      const hasRunning = (data as RunResult[]).some(r => r.status === 'RUNNING')
+      return hasRunning ? 2000 : false
+    },
   })
 
   const statusStyle: Record<string, string> = {
