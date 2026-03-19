@@ -1,0 +1,229 @@
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::sse::{Event, Sse},
+    routing::{get, post},
+    Json, Router,
+};
+use futures::stream::StreamExt;
+use serde_json::Value;
+use sqlx::SqlitePool;
+use std::collections::HashMap;
+use std::convert::Infallible;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use uuid::Uuid;
+use chrono::Utc;
+use crate::engine::runner::{run_workflow, RunEvent};
+
+pub fn router() -> Router<SqlitePool> {
+    Router::new()
+        .route("/workflows/:id/run", post(start_run))
+        .route("/workflows/:id/runs", get(list_runs))
+        .route("/runs/:id", get(get_run))
+        .route("/runs/:id/stream", get(stream_run))
+}
+
+#[derive(serde::Deserialize)]
+pub struct StartRunPayload {
+    pub startup_variable_values: Option<HashMap<String, String>>,
+}
+
+async fn start_run(
+    State(pool): State<SqlitePool>,
+    Path(workflow_id): Path<String>,
+    Json(payload): Json<StartRunPayload>,
+) -> (StatusCode, Json<Value>) {
+    let run_id = Uuid::new_v4().to_string();
+    let started_at = Utc::now().to_rfc3339();
+    let startup_vars = payload.startup_variable_values.unwrap_or_default();
+    let vars_json = serde_json::to_string(&startup_vars).unwrap_or_else(|_| "{}".to_string());
+
+    sqlx::query(
+        "INSERT INTO workflow_runs (id, workflow_id, started_at, status, startup_variable_values, step_results) \
+         VALUES (?, ?, ?, 'RUNNING', ?, '[]')",
+    )
+    .bind(&run_id)
+    .bind(&workflow_id)
+    .bind(&started_at)
+    .bind(&vars_json)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Spawn the run in the background and persist results when done
+    let pool_clone = pool.clone();
+    let run_id_clone = run_id.clone();
+    let workflow_id_clone = workflow_id.clone();
+    let startup_vars_clone = startup_vars;
+
+    tokio::spawn(async move {
+        let (tx, _rx) = mpsc::channel(100);
+        let results = run_workflow(&pool_clone, &workflow_id_clone, startup_vars_clone, tx).await;
+        let results_json = serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string());
+        let final_status = if results.iter().any(|r| r.status == "failed") {
+            "FAILED"
+        } else {
+            "PASSED"
+        };
+        let finished_at = Utc::now().to_rfc3339();
+        sqlx::query(
+            "UPDATE workflow_runs SET status=?, finished_at=?, step_results=? WHERE id=?",
+        )
+        .bind(final_status)
+        .bind(finished_at)
+        .bind(results_json)
+        .bind(&run_id_clone)
+        .execute(&pool_clone)
+        .await
+        .unwrap();
+    });
+
+    (StatusCode::CREATED, Json(serde_json::json!({ "run_id": run_id })))
+}
+
+async fn stream_run(
+    State(pool): State<SqlitePool>,
+    Path(run_id): Path<String>,
+) -> Sse<impl futures::stream::Stream<Item = Result<Event, Infallible>>> {
+    let (tx, rx) = mpsc::channel::<RunEvent>(100);
+
+    // Fetch run details to kick off execution
+    let run_row = sqlx::query_as::<_, (String, String, String)>(
+        "SELECT workflow_id, startup_variable_values, status FROM workflow_runs WHERE id = ?",
+    )
+    .bind(&run_id)
+    .fetch_optional(&pool)
+    .await
+    .unwrap();
+
+    if let Some((workflow_id, vars_json, _status)) = run_row {
+        let startup_vars: HashMap<String, String> =
+            serde_json::from_str(&vars_json).unwrap_or_default();
+        let pool_clone = pool.clone();
+        tokio::spawn(async move {
+            run_workflow(&pool_clone, &workflow_id, startup_vars, tx).await;
+        });
+    }
+
+    let stream = ReceiverStream::new(rx).map(|event| {
+        let data = serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string());
+        Ok::<Event, Infallible>(Event::default().data(data))
+    });
+
+    Sse::new(stream)
+}
+
+async fn list_runs(
+    State(pool): State<SqlitePool>,
+    Path(workflow_id): Path<String>,
+) -> Json<Vec<Value>> {
+    let rows = sqlx::query_as::<_, (String, String, Option<String>, String)>(
+        "SELECT id, started_at, finished_at, status FROM workflow_runs WHERE workflow_id = ? ORDER BY started_at DESC",
+    )
+    .bind(&workflow_id)
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    let runs = rows
+        .into_iter()
+        .map(|(id, started, finished, status)| {
+            serde_json::json!({
+                "id": id,
+                "started_at": started,
+                "finished_at": finished,
+                "status": status,
+            })
+        })
+        .collect();
+    Json(runs)
+}
+
+async fn get_run(
+    State(pool): State<SqlitePool>,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    sqlx::query_as::<_, (String, String, Option<String>, String, String, String)>(
+        "SELECT id, started_at, finished_at, status, startup_variable_values, step_results \
+         FROM workflow_runs WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&pool)
+    .await
+    .unwrap()
+    .map(|(id, started, finished, status, vars, results)| {
+        Json(serde_json::json!({
+            "id": id,
+            "started_at": started,
+            "finished_at": finished,
+            "status": status,
+            "startup_variable_values": serde_json::from_str::<Value>(&vars).unwrap_or_default(),
+            "step_results": serde_json::from_str::<Value>(&results).unwrap_or_default(),
+        }))
+    })
+    .ok_or(StatusCode::NOT_FOUND)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum_test::TestServer;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    async fn test_pool() -> SqlitePool {
+        let pool = SqlitePoolOptions::new()
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query("INSERT INTO projects (id,name,description,created_at) VALUES ('p1','P','','2024-01-01T00:00:00Z')")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO workflows (id,project_id,name,description,startup_variables,created_at) VALUES ('w1','p1','W','','[]','2024-01-01T00:00:00Z')")
+            .execute(&pool).await.unwrap();
+        pool
+    }
+
+    #[tokio::test]
+    async fn test_start_run_creates_record() {
+        let pool = test_pool().await;
+        let app = Router::new().nest("/api", router()).with_state(pool.clone());
+        let server = TestServer::new(app).unwrap();
+
+        let res = server
+            .post("/api/workflows/w1/run")
+            .json(&serde_json::json!({"startup_variable_values": {}}))
+            .await;
+        res.assert_status(StatusCode::CREATED);
+        let body: Value = res.json();
+        let run_id = body["run_id"].as_str().unwrap().to_string();
+        assert!(!run_id.is_empty());
+
+        // Verify the run record exists in DB
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let res = server.get(&format!("/api/runs/{}", run_id)).await;
+        res.assert_status_ok();
+        let run: Value = res.json();
+        assert_eq!(run["id"], run_id);
+    }
+
+    #[tokio::test]
+    async fn test_list_runs() {
+        let pool = test_pool().await;
+        let app = Router::new().nest("/api", router()).with_state(pool.clone());
+        let server = TestServer::new(app).unwrap();
+
+        // Start two runs
+        server.post("/api/workflows/w1/run")
+            .json(&serde_json::json!({})).await;
+        server.post("/api/workflows/w1/run")
+            .json(&serde_json::json!({})).await;
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let res = server.get("/api/workflows/w1/runs").await;
+        res.assert_status_ok();
+        let runs: Vec<Value> = res.json();
+        assert_eq!(runs.len(), 2);
+    }
+}
