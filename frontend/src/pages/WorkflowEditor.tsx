@@ -12,6 +12,7 @@ import { StepCard } from '../components/StepCard'
 import { ConditionGate } from '../components/ConditionGate'
 import { StepConfigPanel } from '../components/StepConfigPanel'
 import { StartupVarsModal } from '../components/StartupVarsModal'
+import { RunHistory } from '../components/RunHistory'
 
 export default function WorkflowEditor() {
   const { projectId, workflowId } = useParams<{ projectId: string; workflowId: string }>()
@@ -183,6 +184,7 @@ export default function WorkflowEditor() {
             />
           </div>
         )}
+        <RunHistory />
       </div>
 
       {showRunModal && workflow && (
