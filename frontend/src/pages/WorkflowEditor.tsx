@@ -2,19 +2,23 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { workflowsApi } from '../api/workflows'
+import type { StartupVariable } from '../api/workflows'
 import { stepsApi } from '../api/steps'
 import type { Step } from '../api/steps'
 import { conditionsApi } from '../api/conditions'
 import type { Condition } from '../api/conditions'
+import { runsApi } from '../api/runs'
 import { StepCard } from '../components/StepCard'
 import { ConditionGate } from '../components/ConditionGate'
 import { StepConfigPanel } from '../components/StepConfigPanel'
+import { StartupVarsModal } from '../components/StartupVarsModal'
 
 export default function WorkflowEditor() {
   const { projectId, workflowId } = useParams<{ projectId: string; workflowId: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [selectedStep, setSelectedStep] = useState<Step | null>(null)
+  const [showRunModal, setShowRunModal] = useState(false)
 
   const { data: workflow } = useQuery({
     queryKey: ['workflow', workflowId],
@@ -67,6 +71,11 @@ export default function WorkflowEditor() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['conditions', workflowId] }),
   })
 
+  const handleRun = async (vars: Record<string, string>) => {
+    const { run_id } = await runsApi.start(workflowId!, vars)
+    navigate(`/projects/${projectId}/workflows/${workflowId}/run-view/${run_id}`)
+  }
+
   const getAvailableVars = (stepIndex: number): string[] => {
     const startupVars = (() => {
       try {
@@ -100,7 +109,7 @@ export default function WorkflowEditor() {
           </div>
         </div>
         <button
-          onClick={() => navigate(`/projects/${projectId}/workflows/${workflowId}/run`)}
+          onClick={() => setShowRunModal(true)}
           className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 font-medium"
         >
           ▶ Run
@@ -175,6 +184,17 @@ export default function WorkflowEditor() {
           </div>
         )}
       </div>
+
+      {showRunModal && workflow && (
+        <StartupVarsModal
+          variables={(() => {
+            try { return JSON.parse(workflow.startup_variables ?? '[]') as StartupVariable[] }
+            catch { return [] }
+          })()}
+          onRun={vars => { setShowRunModal(false); handleRun(vars) }}
+          onClose={() => setShowRunModal(false)}
+        />
+      )}
     </div>
   )
 }
