@@ -13,5 +13,8 @@ dist/
 *.db-shm
 *.db-wal
 
+# Docker Compose SQLite volume
+data/
+
 # OS
 .DS_Store
