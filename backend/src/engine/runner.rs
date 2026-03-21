@@ -56,12 +56,13 @@ fn resolve_json_path(value: &serde_json::Value, path: &str) -> String {
     }
 }
 
+/// Returns (step_results, final_status) where final_status is "passed" or "failed"
 pub async fn run_workflow(
     pool: &SqlitePool,
     workflow_id: &str,
     startup_vars: HashMap<String, String>,
     tx: mpsc::Sender<RunEvent>,
-) -> Vec<StepResult> {
+) -> (Vec<StepResult>, String) {
     let steps: Vec<Step> = sqlx::query_as::<_, Step>(
         "SELECT * FROM steps WHERE workflow_id = ? ORDER BY order_index ASC",
     )
@@ -186,7 +187,7 @@ pub async fn run_workflow(
                             status: "failed".to_string(),
                         })
                         .await;
-                    return results;
+                    return (results, "failed".to_string());
                 }
             }
             Err(e) => {
@@ -210,7 +211,7 @@ pub async fn run_workflow(
                         status: "failed".to_string(),
                     })
                     .await;
-                return results;
+                return (results, "failed".to_string());
             }
         }
 
@@ -232,7 +233,7 @@ pub async fn run_workflow(
                             status: "failed".to_string(),
                         })
                         .await;
-                    return results;
+                    return (results, "failed".to_string());
                 }
                 Err(_) => {
                     // Evaluation error — skip the condition and continue
@@ -251,7 +252,7 @@ pub async fn run_workflow(
             status: "passed".to_string(),
         })
         .await;
-    results
+    (results, "passed".to_string())
 }
 
 #[cfg(test)]

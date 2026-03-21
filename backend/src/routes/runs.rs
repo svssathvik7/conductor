@@ -79,14 +79,10 @@ async fn stream_run(
         let run_id_clone = run_id.clone();
 
         tokio::spawn(async move {
-            let results = run_workflow(&pool_clone, &workflow_id, startup_vars, tx).await;
+            let (results, run_status) = run_workflow(&pool_clone, &workflow_id, startup_vars, tx).await;
             // Persist final results
             let results_json = serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string());
-            let final_status = if results.iter().any(|r| r.status == "failed") {
-                "FAILED"
-            } else {
-                "PASSED"
-            };
+            let final_status = run_status.to_uppercase();
             let finished_at = Utc::now().to_rfc3339();
             sqlx::query(
                 "UPDATE workflow_runs SET status=?, finished_at=?, step_results=? WHERE id=?",
