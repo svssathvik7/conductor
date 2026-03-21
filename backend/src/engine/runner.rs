@@ -216,12 +216,13 @@ pub async fn run_workflow(
         }
 
         // Evaluate condition gate after this step
+        // Logic: IF expression is TRUE → trigger the action (FAIL/STOP)
         if let Some(cond) = conditions.iter().find(|c| c.after_step_id == step.id) {
             match evaluate(&cond.expression, &ctx) {
-                Ok(true) => {
-                    // Condition passes — continue to next step
-                }
                 Ok(false) => {
+                    // Condition not met — continue to next step
+                }
+                Ok(true) => {
                     let _ = tx
                         .send(RunEvent::ConditionFail {
                             condition_id: cond.id.clone(),
