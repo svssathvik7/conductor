@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { workflowsApi } from '../api/workflows'
@@ -12,6 +12,7 @@ import { yamlApi } from '../api/yaml'
 import { StepCard } from '../components/StepCard'
 import { ConditionGate } from '../components/ConditionGate'
 import { StepConfigPanel } from '../components/StepConfigPanel'
+import { ParallelGroup } from '../components/ParallelGroup'
 import { StartupVarsModal } from '../components/StartupVarsModal'
 import { RunHistory } from '../components/RunHistory'
 import { ProfileManager } from '../components/ProfileManager'
@@ -88,6 +89,32 @@ export default function WorkflowEditor() {
     const { run_id } = await runsApi.start(workflowId!, vars, profileId)
     navigate(`/projects/${projectId}/workflows/${workflowId}/run-view/${run_id}`)
   }
+
+  const renderUnits = useMemo(() => {
+    const units: Array<{ type: 'single'; step: Step } | { type: 'parallel'; steps: Step[]; group: string }> = []
+    let i = 0
+    while (i < steps.length) {
+      const step = steps[i]
+      if (step.parallel_group) {
+        const group: Step[] = [step]
+        let j = i + 1
+        while (j < steps.length && steps[j].parallel_group === step.parallel_group) {
+          group.push(steps[j])
+          j++
+        }
+        if (group.length > 1) {
+          units.push({ type: 'parallel', steps: group, group: step.parallel_group })
+        } else {
+          units.push({ type: 'single', step })
+        }
+        i = j
+      } else {
+        units.push({ type: 'single', step })
+        i++
+      }
+    }
+    return units
+  }, [steps])
 
   const getAvailableVars = (stepIndex: number): string[] => {
     const startupVars = (() => {
@@ -172,7 +199,50 @@ export default function WorkflowEditor() {
         {/* Canvas */}
         <div className="flex-1 overflow-y-auto p-8" style={{ backgroundColor: 'var(--bg-primary)' }}>
           <div className="max-w-xl mx-auto space-y-1">
-            {steps.map((step, idx) => {
+            {renderUnits.map((unit) => {
+              if (unit.type === 'parallel') {
+                const lastStep = unit.steps[unit.steps.length - 1]
+                const lastStepIsLast = steps.indexOf(lastStep) === steps.length - 1
+                const condition = conditions.find(c => c.after_step_id === lastStep.id)
+                return (
+                  <div key={`parallel-${unit.group}`}>
+                    <ParallelGroup groupName={unit.group}>
+                      {unit.steps.map(step => (
+                        <div key={step.id} style={{ flex: 1, minWidth: 0 }}>
+                          <StepCard
+                            step={step}
+                            isSelected={selectedStep?.id === step.id}
+                            onClick={() => setSelectedStep(step)}
+                            onDelete={() => deleteStep.mutate(step.id)}
+                          />
+                        </div>
+                      ))}
+                    </ParallelGroup>
+                    {!lastStepIsLast && (
+                      <>
+                        <ConditionGate
+                          condition={condition}
+                          onSave={(expr, action) => {
+                            if (condition) {
+                              updateCondition.mutate({ id: condition.id, expr, action })
+                            } else {
+                              addCondition.mutate({ stepId: lastStep.id, expr, action })
+                            }
+                          }}
+                          onDelete={condition ? () => deleteCondition.mutate(condition.id) : undefined}
+                        />
+                        <div className="flex justify-center py-1">
+                          <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+                            <path d="M8 0v16M4 12l4 4 4-4" stroke="var(--border-hover)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              }
+              const step = unit.step
+              const idx = steps.indexOf(step)
               const condition = conditions.find(c => c.after_step_id === step.id)
               return (
                 <div key={step.id}>
@@ -182,7 +252,6 @@ export default function WorkflowEditor() {
                     onClick={() => setSelectedStep(step)}
                     onDelete={() => deleteStep.mutate(step.id)}
                   />
-                  {/* Condition gate + connector */}
                   {idx < steps.length - 1 && (
                     <>
                       <ConditionGate

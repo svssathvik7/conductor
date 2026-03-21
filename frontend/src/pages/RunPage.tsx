@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { runsApi } from '../api/runs'
@@ -6,6 +6,7 @@ import type { StepResult, IterationResult } from '../api/runs'
 import { stepsApi } from '../api/steps'
 import type { Step } from '../api/steps'
 import { RunStepCard } from '../components/RunStepCard'
+import { ParallelGroup } from '../components/ParallelGroup'
 
 type StepStatus = 'pending' | 'running' | 'passed' | 'failed'
 
@@ -26,11 +27,38 @@ export default function RunPage() {
   const [stepResults, setStepResults] = useState<Record<string, StepResult>>({})
   const [runStatus, setRunStatus] = useState<'running' | 'passed' | 'failed'>('running')
   const [loopProgress, setLoopProgress] = useState<Record<string, LoopProgress>>({})
+  const [, setParallelGroupStatuses] = useState<Record<string, 'running' | 'passed' | 'failed'>>({})
 
   const { data: steps = [] } = useQuery<Step[]>({
     queryKey: ['steps', workflowId],
     queryFn: () => stepsApi.list(workflowId!),
   })
+
+  const renderUnits = useMemo(() => {
+    const units: Array<{ type: 'single'; step: Step } | { type: 'parallel'; steps: Step[]; group: string }> = []
+    let i = 0
+    while (i < steps.length) {
+      const step = steps[i]
+      if (step.parallel_group) {
+        const group: Step[] = [step]
+        let j = i + 1
+        while (j < steps.length && steps[j].parallel_group === step.parallel_group) {
+          group.push(steps[j])
+          j++
+        }
+        if (group.length > 1) {
+          units.push({ type: 'parallel', steps: group, group: step.parallel_group })
+        } else {
+          units.push({ type: 'single', step })
+        }
+        i = j
+      } else {
+        units.push({ type: 'single', step })
+        i++
+      }
+    }
+    return units
+  }, [steps])
 
   useEffect(() => {
     if (!runId) return
@@ -70,6 +98,21 @@ export default function RunPage() {
               iterations: r[event.step_id]?.iterations,
             },
           }))
+          break
+        case 'parallel_group_start':
+          for (const sid of (event.step_ids ?? [])) {
+            setStepStatuses(s => ({ ...s, [sid]: 'running' }))
+          }
+          setParallelGroupStatuses(pg => {
+            const key = (event.step_ids ?? []).sort().join(',')
+            return { ...pg, [key]: 'running' }
+          })
+          break
+        case 'parallel_group_complete':
+          setParallelGroupStatuses(pg => {
+            const key = (event.step_ids ?? []).sort().join(',')
+            return { ...pg, [key]: event.status === 'passed' ? 'passed' : 'failed' }
+          })
           break
         case 'loop_start':
           setLoopProgress(lp => ({
@@ -230,23 +273,54 @@ export default function RunPage() {
         </div>
 
         <div className="space-y-2">
-          {steps.map((step, idx) => (
-            <div key={step.id}>
-              <RunStepCard
-                step={step}
-                result={stepResults[step.id]}
-                status={getStepStatus(step.id)}
-                loopProgress={loopProgress[step.id]}
-              />
-              {idx < steps.length - 1 && (
-                <div className="flex justify-center py-1">
-                  <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-                    <path d="M8 0v16M4 12l4 4 4-4" stroke="var(--border-hover)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+          {renderUnits.map((unit) => {
+            if (unit.type === 'parallel') {
+              const lastStep = unit.steps[unit.steps.length - 1]
+              const lastStepIsLast = steps.indexOf(lastStep) === steps.length - 1
+              return (
+                <div key={`parallel-${unit.group}`}>
+                  <ParallelGroup groupName={unit.group}>
+                    {unit.steps.map(step => (
+                      <div key={step.id} style={{ flex: 1, minWidth: 0 }}>
+                        <RunStepCard
+                          step={step}
+                          result={stepResults[step.id]}
+                          status={getStepStatus(step.id)}
+                          loopProgress={loopProgress[step.id]}
+                        />
+                      </div>
+                    ))}
+                  </ParallelGroup>
+                  {!lastStepIsLast && (
+                    <div className="flex justify-center py-1">
+                      <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+                        <path d="M8 0v16M4 12l4 4 4-4" stroke="var(--border-hover)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              )
+            }
+            const step = unit.step
+            const idx = steps.indexOf(step)
+            return (
+              <div key={step.id}>
+                <RunStepCard
+                  step={step}
+                  result={stepResults[step.id]}
+                  status={getStepStatus(step.id)}
+                  loopProgress={loopProgress[step.id]}
+                />
+                {idx < steps.length - 1 && (
+                  <div className="flex justify-center py-1">
+                    <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+                      <path d="M8 0v16M4 12l4 4 4-4" stroke="var(--border-hover)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                )}
+              </div>
+            )
+          })}
           {steps.length === 0 && (
             <p className="text-center text-sm" style={{ color: 'var(--text-tertiary)' }}>No steps in this workflow.</p>
           )}

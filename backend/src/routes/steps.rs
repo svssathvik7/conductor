@@ -46,8 +46,8 @@ async fn create_step(
     let step = Step::new(workflow_id, count, payload);
     sqlx::query(
         "INSERT INTO steps \
-         (id, workflow_id, order_index, name, method, url, headers, body, response_schema, on_success, on_failure, loop_type, loop_config) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         (id, workflow_id, order_index, name, method, url, headers, body, response_schema, on_success, on_failure, loop_type, loop_config, parallel_group) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&step.id)
     .bind(&step.workflow_id)
@@ -62,6 +62,7 @@ async fn create_step(
     .bind(&step.on_failure)
     .bind(&step.loop_type)
     .bind(&step.loop_config)
+    .bind(&step.parallel_group)
     .execute(&pool)
     .await
     .unwrap();
@@ -79,8 +80,9 @@ async fn update_step(
         .unwrap_or_else(|_| "[]".to_string());
     let loop_type = payload.loop_type.unwrap_or_else(|| "none".to_string());
     let loop_config = payload.loop_config.unwrap_or_else(|| "{}".to_string());
+    let parallel_group = payload.parallel_group;
     sqlx::query(
-        "UPDATE steps SET name=?, method=?, url=?, headers=?, body=?, response_schema=?, on_success=?, on_failure=?, loop_type=?, loop_config=? WHERE id=?",
+        "UPDATE steps SET name=?, method=?, url=?, headers=?, body=?, response_schema=?, on_success=?, on_failure=?, loop_type=?, loop_config=?, parallel_group=? WHERE id=?",
     )
     .bind(&payload.name)
     .bind(payload.method.unwrap_or_else(|| "GET".to_string()))
@@ -92,6 +94,7 @@ async fn update_step(
     .bind(payload.on_failure.unwrap_or_else(|| "STOP".to_string()))
     .bind(loop_type)
     .bind(loop_config)
+    .bind(parallel_group)
     .bind(&id)
     .execute(&pool)
     .await
