@@ -29,6 +29,7 @@ pub struct Step {
     pub on_failure: String,
     pub loop_type: String,
     pub loop_config: String,
+    pub parallel_group: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,6 +44,7 @@ pub struct CreateStep {
     pub on_failure: Option<String>,
     pub loop_type: Option<String>,
     pub loop_config: Option<String>,
+    pub parallel_group: Option<String>,
 }
 
 impl Step {
@@ -63,6 +65,7 @@ impl Step {
             on_failure: payload.on_failure.unwrap_or_else(|| "STOP".to_string()),
             loop_type: payload.loop_type.unwrap_or_else(|| "none".to_string()),
             loop_config: payload.loop_config.unwrap_or_else(|| "{}".to_string()),
+            parallel_group: payload.parallel_group,
         }
     }
 }

@@ -31,6 +31,7 @@ export function StepConfigPanel({ step, availableVars, onSave, onClose }: Props)
     const cfg = parseLoopConfig(step.loop_config || '{}')
     return cfg.source_var ?? ''
   })
+  const [parallelGroup, setParallelGroup] = useState(step.parallel_group ?? '')
 
   useEffect(() => {
     setName(step.name); setMethod(step.method); setUrl(step.url)
@@ -40,6 +41,7 @@ export function StepConfigPanel({ step, availableVars, onSave, onClose }: Props)
     const cfg = parseLoopConfig(step.loop_config || '{}')
     setLoopCount(cfg.count ?? 1)
     setLoopSourceVar(cfg.source_var ?? '')
+    setParallelGroup(step.parallel_group ?? '')
   }, [step.id])
 
   const buildLoopConfig = (): string => {
@@ -166,6 +168,20 @@ export function StepConfigPanel({ step, availableVars, onSave, onClose }: Props)
           </div>
         </div>
 
+        <div>
+          <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-secondary)' }}>Parallel Group</label>
+          <input
+            className="w-full rounded-xl px-3 py-2.5 text-sm"
+            style={inputStyle}
+            placeholder="e.g. group-1"
+            value={parallelGroup}
+            onChange={e => setParallelGroup(e.target.value)}
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+            Steps with the same group name run simultaneously
+          </p>
+        </div>
+
         {availableVars.length > 0 && (
           <div>
             <label className="text-xs font-medium block mb-2" style={{ color: 'var(--text-secondary)' }}>Available Variables</label>
@@ -196,6 +212,7 @@ export function StepConfigPanel({ step, availableVars, onSave, onClose }: Props)
             name, method, url, body, response_schema: schema,
             loop_type: loopType,
             loop_config: buildLoopConfig(),
+            parallel_group: parallelGroup.trim() || null,
           })}
           className="w-full py-2.5 rounded-xl text-white font-medium text-sm transition-all"
           style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}

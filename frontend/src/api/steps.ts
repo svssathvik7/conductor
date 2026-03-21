@@ -17,6 +17,7 @@ export interface Step {
   on_failure: string
   loop_type: string
   loop_config: string
+  parallel_group: string | null
 }
 
 export const stepsApi = {

@@ -57,6 +57,8 @@ pub struct StepYaml {
     pub loop_type: String,
     #[serde(default = "default_loop_config")]
     pub loop_config: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parallel_group: Option<String>,
 }
 
 fn default_loop_type() -> String {
@@ -200,6 +202,7 @@ async fn export_workflow(
                     on_failure: s.on_failure.clone(),
                     loop_type: s.loop_type.clone(),
                     loop_config: s.loop_config.clone(),
+                    parallel_group: s.parallel_group.clone(),
                 }
             })
             .collect(),
@@ -308,6 +311,7 @@ async fn import_workflow(
                 on_failure: Some(step_yaml.on_failure.clone()),
                 loop_type: Some(step_yaml.loop_type.clone()),
                 loop_config: Some(step_yaml.loop_config.clone()),
+                parallel_group: step_yaml.parallel_group.clone(),
             },
         );
 
@@ -315,8 +319,8 @@ async fn import_workflow(
 
         sqlx::query(
             "INSERT INTO steps \
-             (id, workflow_id, order_index, name, method, url, headers, body, response_schema, on_success, on_failure, loop_type, loop_config) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             (id, workflow_id, order_index, name, method, url, headers, body, response_schema, on_success, on_failure, loop_type, loop_config, parallel_group) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&step.id)
         .bind(&step.workflow_id)
@@ -331,6 +335,7 @@ async fn import_workflow(
         .bind(&step.on_failure)
         .bind(&step.loop_type)
         .bind(&step.loop_config)
+        .bind(&step.parallel_group)
         .execute(&pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
