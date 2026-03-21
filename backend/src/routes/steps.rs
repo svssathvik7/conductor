@@ -46,8 +46,8 @@ async fn create_step(
     let step = Step::new(workflow_id, count, payload);
     sqlx::query(
         "INSERT INTO steps \
-         (id, workflow_id, order_index, name, method, url, headers, body, response_schema, on_success, on_failure) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         (id, workflow_id, order_index, name, method, url, headers, body, response_schema, on_success, on_failure, loop_type, loop_config) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&step.id)
     .bind(&step.workflow_id)
@@ -60,6 +60,8 @@ async fn create_step(
     .bind(&step.response_schema)
     .bind(&step.on_success)
     .bind(&step.on_failure)
+    .bind(&step.loop_type)
+    .bind(&step.loop_config)
     .execute(&pool)
     .await
     .unwrap();
@@ -75,8 +77,10 @@ async fn update_step(
         .unwrap_or_else(|_| "[]".to_string());
     let schema = serde_json::to_string(&payload.response_schema.unwrap_or_default())
         .unwrap_or_else(|_| "[]".to_string());
+    let loop_type = payload.loop_type.unwrap_or_else(|| "none".to_string());
+    let loop_config = payload.loop_config.unwrap_or_else(|| "{}".to_string());
     sqlx::query(
-        "UPDATE steps SET name=?, method=?, url=?, headers=?, body=?, response_schema=?, on_success=?, on_failure=? WHERE id=?",
+        "UPDATE steps SET name=?, method=?, url=?, headers=?, body=?, response_schema=?, on_success=?, on_failure=?, loop_type=?, loop_config=? WHERE id=?",
     )
     .bind(&payload.name)
     .bind(payload.method.unwrap_or_else(|| "GET".to_string()))
@@ -86,6 +90,8 @@ async fn update_step(
     .bind(schema)
     .bind(payload.on_success.unwrap_or_else(|| "CONTINUE".to_string()))
     .bind(payload.on_failure.unwrap_or_else(|| "STOP".to_string()))
+    .bind(loop_type)
+    .bind(loop_config)
     .bind(&id)
     .execute(&pool)
     .await
@@ -208,6 +214,53 @@ mod tests {
         let res = server
             .patch(&format!("/api/steps/{}/reorder", step.id))
             .json(&serde_json::json!({"new_index": 5}))
+            .await;
+        res.assert_status_ok();
+    }
+
+    #[tokio::test]
+    async fn test_create_step_with_loop() {
+        let pool = test_pool().await;
+        let app = Router::new().nest("/api", router()).with_state(pool);
+        let server = TestServer::new(app).unwrap();
+
+        let res = server
+            .post("/api/workflows/w1/steps")
+            .json(&serde_json::json!({
+                "name": "Loop Step",
+                "method": "GET",
+                "url": "https://api.example.com/items",
+                "loop_type": "count",
+                "loop_config": "{\"count\": 3}"
+            }))
+            .await;
+        res.assert_status(StatusCode::CREATED);
+        let step: Step = res.json();
+        assert_eq!(step.loop_type, "count");
+        let config: serde_json::Value = serde_json::from_str(&step.loop_config).unwrap();
+        assert_eq!(config["count"], 3);
+    }
+
+    #[tokio::test]
+    async fn test_update_step_with_loop() {
+        let pool = test_pool().await;
+        let app = Router::new().nest("/api", router()).with_state(pool);
+        let server = TestServer::new(app).unwrap();
+
+        let res = server
+            .post("/api/workflows/w1/steps")
+            .json(&serde_json::json!({"name": "Step"}))
+            .await;
+        let step: Step = res.json();
+        assert_eq!(step.loop_type, "none");
+
+        let res = server
+            .put(&format!("/api/steps/{}", step.id))
+            .json(&serde_json::json!({
+                "name": "Loop Step",
+                "loop_type": "for_each",
+                "loop_config": "{\"source_var\": \"step1.items\"}"
+            }))
             .await;
         res.assert_status_ok();
     }

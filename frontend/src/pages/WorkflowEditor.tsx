@@ -8,11 +8,13 @@ import type { Step } from '../api/steps'
 import { conditionsApi } from '../api/conditions'
 import type { Condition } from '../api/conditions'
 import { runsApi } from '../api/runs'
+import { yamlApi } from '../api/yaml'
 import { StepCard } from '../components/StepCard'
 import { ConditionGate } from '../components/ConditionGate'
 import { StepConfigPanel } from '../components/StepConfigPanel'
 import { StartupVarsModal } from '../components/StartupVarsModal'
 import { RunHistory } from '../components/RunHistory'
+import { ProfileManager } from '../components/ProfileManager'
 
 export default function WorkflowEditor() {
   const { projectId, workflowId } = useParams<{ projectId: string; workflowId: string }>()
@@ -72,8 +74,18 @@ export default function WorkflowEditor() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['conditions', workflowId] }),
   })
 
-  const handleRun = async (vars: Record<string, string>) => {
-    const { run_id } = await runsApi.start(workflowId!, vars)
+  const handleExport = async () => {
+    const blob = await yamlApi.exportWorkflow(workflowId!)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${workflow?.name ?? 'workflow'}.yaml`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleRun = async (vars: Record<string, string>, profileId?: string) => {
+    const { run_id } = await runsApi.start(workflowId!, vars, profileId)
     navigate(`/projects/${projectId}/workflows/${workflowId}/run-view/${run_id}`)
   }
 
@@ -121,13 +133,39 @@ export default function WorkflowEditor() {
             <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Workflow Editor</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowRunModal(true)}
-          className="px-5 py-2.5 rounded-xl text-white font-medium text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
-          style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
-        >
-          {'\u25B6'} Run
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExport}
+            className="px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+            style={{
+              backgroundColor: 'var(--bg-tertiary)',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = 'var(--accent)'
+              e.currentTarget.style.color = 'var(--accent)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'var(--border)'
+              e.currentTarget.style.color = 'var(--text-secondary)'
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }}>
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export
+          </button>
+          <button
+            onClick={() => setShowRunModal(true)}
+            className="px-5 py-2.5 rounded-xl text-white font-medium text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+            style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+          >
+            {'\u25B6'} Run
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -214,15 +252,17 @@ export default function WorkflowEditor() {
           </div>
         )}
         <RunHistory />
+        <ProfileManager workflowId={workflowId!} />
       </div>
 
       {showRunModal && workflow && (
         <StartupVarsModal
+          workflowId={workflowId!}
           variables={(() => {
             try { return JSON.parse(workflow.startup_variables ?? '[]') as StartupVariable[] }
             catch { return [] }
           })()}
-          onRun={vars => { setShowRunModal(false); handleRun(vars) }}
+          onRun={(vars, profileId) => { setShowRunModal(false); handleRun(vars, profileId) }}
           onClose={() => setShowRunModal(false)}
         />
       )}

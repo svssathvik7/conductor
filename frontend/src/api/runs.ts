@@ -1,11 +1,20 @@
 import { api } from './client'
 
+export interface IterationResult {
+  index: number
+  status: 'passed' | 'failed'
+  response_body: string
+  extracted_vars: Record<string, string>
+  error?: string
+}
+
 export interface StepResult {
   step_id: string
   status: 'passed' | 'failed'
   response_body: string
   extracted_vars: Record<string, string>
   error?: string
+  iterations?: IterationResult[]
 }
 
 export interface RunResult {
@@ -18,9 +27,10 @@ export interface RunResult {
 }
 
 export const runsApi = {
-  start: (workflowId: string, startupVars: Record<string, string>) =>
+  start: (workflowId: string, startupVars: Record<string, string>, profileId?: string) =>
     api.post<{ run_id: string }>(`/api/workflows/${workflowId}/run`, {
       startup_variable_values: startupVars,
+      profile_id: profileId,
     }).then(r => r.data),
   get: (runId: string) =>
     api.get<RunResult>(`/api/runs/${runId}`).then(r => r.data),

@@ -27,6 +27,8 @@ pub struct Step {
     pub response_schema: String,
     pub on_success: String,
     pub on_failure: String,
+    pub loop_type: String,
+    pub loop_config: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,6 +41,8 @@ pub struct CreateStep {
     pub response_schema: Option<Vec<ResponseSchemaField>>,
     pub on_success: Option<String>,
     pub on_failure: Option<String>,
+    pub loop_type: Option<String>,
+    pub loop_config: Option<String>,
 }
 
 impl Step {
@@ -57,6 +61,8 @@ impl Step {
                 .unwrap_or_else(|_| "[]".to_string()),
             on_success: payload.on_success.unwrap_or_else(|| "CONTINUE".to_string()),
             on_failure: payload.on_failure.unwrap_or_else(|| "STOP".to_string()),
+            loop_type: payload.loop_type.unwrap_or_else(|| "none".to_string()),
+            loop_config: payload.loop_config.unwrap_or_else(|| "{}".to_string()),
         }
     }
 }

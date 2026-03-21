@@ -43,7 +43,19 @@ export function StepCard({ step, isSelected, onClick, onDelete }: Props) {
             {step.method}
           </span>
           <div className="min-w-0">
-            <p className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{step.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{step.name}</p>
+              {step.loop_type && step.loop_type !== 'none' && (
+                <span
+                  className="text-xs px-1.5 py-0.5 rounded-md font-medium flex-shrink-0"
+                  style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent)' }}
+                >
+                  {step.loop_type === 'count'
+                    ? `\u00D7${(() => { try { return JSON.parse(step.loop_config)?.count ?? '?' } catch { return '?' } })()}`
+                    : 'for-each'}
+                </span>
+              )}
+            </div>
             {step.url && (
               <p className="text-xs truncate mt-0.5 font-mono" style={{ color: 'var(--text-tertiary)' }}>
                 {step.url}
