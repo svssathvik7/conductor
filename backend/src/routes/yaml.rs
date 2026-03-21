@@ -53,6 +53,18 @@ pub struct StepYaml {
     pub response_schema: Vec<ResponseSchemaFieldYaml>,
     pub on_success: String,
     pub on_failure: String,
+    #[serde(default = "default_loop_type")]
+    pub loop_type: String,
+    #[serde(default = "default_loop_config")]
+    pub loop_config: String,
+}
+
+fn default_loop_type() -> String {
+    "none".to_string()
+}
+
+fn default_loop_config() -> String {
+    "{}".to_string()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -186,6 +198,8 @@ async fn export_workflow(
                         .collect(),
                     on_success: s.on_success.clone(),
                     on_failure: s.on_failure.clone(),
+                    loop_type: s.loop_type.clone(),
+                    loop_config: s.loop_config.clone(),
                 }
             })
             .collect(),
@@ -292,6 +306,8 @@ async fn import_workflow(
                 response_schema: Some(schema),
                 on_success: Some(step_yaml.on_success.clone()),
                 on_failure: Some(step_yaml.on_failure.clone()),
+                loop_type: Some(step_yaml.loop_type.clone()),
+                loop_config: Some(step_yaml.loop_config.clone()),
             },
         );
 
@@ -299,8 +315,8 @@ async fn import_workflow(
 
         sqlx::query(
             "INSERT INTO steps \
-             (id, workflow_id, order_index, name, method, url, headers, body, response_schema, on_success, on_failure) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             (id, workflow_id, order_index, name, method, url, headers, body, response_schema, on_success, on_failure, loop_type, loop_config) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&step.id)
         .bind(&step.workflow_id)
@@ -313,6 +329,8 @@ async fn import_workflow(
         .bind(&step.response_schema)
         .bind(&step.on_success)
         .bind(&step.on_failure)
+        .bind(&step.loop_type)
+        .bind(&step.loop_config)
         .execute(&pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

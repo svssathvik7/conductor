@@ -2,12 +2,18 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { runsApi } from '../api/runs'
-import type { StepResult } from '../api/runs'
+import type { StepResult, IterationResult } from '../api/runs'
 import { stepsApi } from '../api/steps'
 import type { Step } from '../api/steps'
 import { RunStepCard } from '../components/RunStepCard'
 
 type StepStatus = 'pending' | 'running' | 'passed' | 'failed'
+
+interface LoopProgress {
+  totalIterations: number
+  currentIteration: number
+  iterationResults: IterationResult[]
+}
 
 export default function RunPage() {
   const { projectId, workflowId, runId } = useParams<{
@@ -19,6 +25,7 @@ export default function RunPage() {
   const [stepStatuses, setStepStatuses] = useState<Record<string, StepStatus>>({})
   const [stepResults, setStepResults] = useState<Record<string, StepResult>>({})
   const [runStatus, setRunStatus] = useState<'running' | 'passed' | 'failed'>('running')
+  const [loopProgress, setLoopProgress] = useState<Record<string, LoopProgress>>({})
 
   const { data: steps = [] } = useQuery<Step[]>({
     queryKey: ['steps', workflowId],
@@ -40,10 +47,12 @@ export default function RunPage() {
           setStepResults(r => ({
             ...r,
             [event.step_id]: {
+              ...r[event.step_id],
               step_id: event.step_id,
               status: 'passed',
-              response_body: '',
+              response_body: r[event.step_id]?.response_body ?? '',
               extracted_vars: event.extracted ?? {},
+              iterations: r[event.step_id]?.iterations,
             },
           }))
           break
@@ -52,11 +61,114 @@ export default function RunPage() {
           setStepResults(r => ({
             ...r,
             [event.step_id]: {
+              ...r[event.step_id],
               step_id: event.step_id,
               status: 'failed',
               response_body: event.response ?? '',
+              extracted_vars: r[event.step_id]?.extracted_vars ?? {},
+              error: event.error,
+              iterations: r[event.step_id]?.iterations,
+            },
+          }))
+          break
+        case 'loop_start':
+          setLoopProgress(lp => ({
+            ...lp,
+            [event.step_id]: {
+              totalIterations: event.total_iterations,
+              currentIteration: 0,
+              iterationResults: [],
+            },
+          }))
+          break
+        case 'iteration_start':
+          setLoopProgress(lp => ({
+            ...lp,
+            [event.step_id]: {
+              ...lp[event.step_id],
+              currentIteration: event.iteration,
+            },
+          }))
+          break
+        case 'iteration_complete':
+          setLoopProgress(lp => {
+            const prev = lp[event.step_id]
+            if (!prev) return lp
+            const iterResult: IterationResult = {
+              index: event.iteration,
+              status: event.status,
+              response_body: '',
+              extracted_vars: event.extracted ?? {},
+            }
+            const newResults = [...prev.iterationResults, iterResult]
+            return {
+              ...lp,
+              [event.step_id]: {
+                ...prev,
+                currentIteration: event.iteration + 1,
+                iterationResults: newResults,
+              },
+            }
+          })
+          setStepResults(r => ({
+            ...r,
+            [event.step_id]: {
+              ...r[event.step_id],
+              step_id: event.step_id,
+              status: 'passed',
+              response_body: '',
+              extracted_vars: event.extracted ?? {},
+              iterations: [
+                ...(r[event.step_id]?.iterations ?? []),
+                {
+                  index: event.iteration,
+                  status: event.status,
+                  response_body: '',
+                  extracted_vars: event.extracted ?? {},
+                },
+              ],
+            },
+          }))
+          break
+        case 'iteration_failed':
+          setLoopProgress(lp => {
+            const prev = lp[event.step_id]
+            if (!prev) return lp
+            const iterResult: IterationResult = {
+              index: event.iteration,
+              status: 'failed',
+              response_body: '',
               extracted_vars: {},
               error: event.error,
+            }
+            return {
+              ...lp,
+              [event.step_id]: {
+                ...prev,
+                currentIteration: event.iteration + 1,
+                iterationResults: [...prev.iterationResults, iterResult],
+              },
+            }
+          })
+          setStepResults(r => ({
+            ...r,
+            [event.step_id]: {
+              ...r[event.step_id],
+              step_id: event.step_id,
+              status: 'failed',
+              response_body: '',
+              extracted_vars: {},
+              error: event.error,
+              iterations: [
+                ...(r[event.step_id]?.iterations ?? []),
+                {
+                  index: event.iteration,
+                  status: 'failed',
+                  response_body: '',
+                  extracted_vars: {},
+                  error: event.error,
+                },
+              ],
             },
           }))
           break
@@ -124,6 +236,7 @@ export default function RunPage() {
                 step={step}
                 result={stepResults[step.id]}
                 status={getStepStatus(step.id)}
+                loopProgress={loopProgress[step.id]}
               />
               {idx < steps.length - 1 && (
                 <div className="flex justify-center py-1">

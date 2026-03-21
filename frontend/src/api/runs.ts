@@ -1,11 +1,20 @@
 import { api } from './client'
 
+export interface IterationResult {
+  index: number
+  status: 'passed' | 'failed'
+  response_body: string
+  extracted_vars: Record<string, string>
+  error?: string
+}
+
 export interface StepResult {
   step_id: string
   status: 'passed' | 'failed'
   response_body: string
   extracted_vars: Record<string, string>
   error?: string
+  iterations?: IterationResult[]
 }
 
 export interface RunResult {

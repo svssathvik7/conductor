@@ -15,6 +15,8 @@ export interface Step {
   response_schema: string
   on_success: string
   on_failure: string
+  loop_type: string
+  loop_config: string
 }
 
 export const stepsApi = {

@@ -1,0 +1,2 @@
+ALTER TABLE steps ADD COLUMN loop_type TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE steps ADD COLUMN loop_config TEXT NOT NULL DEFAULT '{}';
