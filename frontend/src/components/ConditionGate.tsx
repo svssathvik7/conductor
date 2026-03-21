@@ -22,7 +22,19 @@ export function ConditionGate({ condition, onSave, onDelete }: Props) {
       <div className="flex items-center justify-center py-1">
         <button
           onClick={() => setEditing(true)}
-          className="text-xs text-gray-400 hover:text-blue-500 border border-dashed border-gray-300 rounded-full px-3 py-0.5 transition-colors"
+          className="text-xs px-3 py-1 rounded-full transition-all duration-200"
+          style={{
+            color: 'var(--text-tertiary)',
+            border: '1px dashed var(--border)',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = 'var(--warning)'
+            e.currentTarget.style.borderColor = 'var(--warning)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = 'var(--text-tertiary)'
+            e.currentTarget.style.borderColor = 'var(--border)'
+          }}
         >
           + condition
         </button>
@@ -32,19 +44,35 @@ export function ConditionGate({ condition, onSave, onDelete }: Props) {
 
   if (editing) {
     return (
-      <div className="flex items-center justify-center py-2">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2 text-sm flex-wrap">
-          <span className="text-amber-700 font-medium">if</span>
+      <div className="flex items-center justify-center py-2 animate-fade-in">
+        <div
+          className="rounded-xl p-3 flex items-center gap-2 text-sm flex-wrap"
+          style={{
+            backgroundColor: 'var(--warning-light)',
+            border: '1px solid var(--warning)',
+          }}
+        >
+          <span className="font-semibold text-xs" style={{ color: 'var(--warning)' }}>IF</span>
           <input
-            className="border border-amber-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-amber-400"
-            placeholder="step1.amount == 0"
+            className="rounded-lg px-2 py-1 text-xs w-48 font-mono"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-primary)',
+            }}
+            placeholder='step1.amount == "0"'
             value={expr}
             onChange={e => setExpr(e.target.value)}
             autoFocus
           />
-          <span className="text-amber-700">→</span>
+          <span className="text-xs font-medium" style={{ color: 'var(--warning)' }}>THEN</span>
           <select
-            className="border border-amber-300 rounded px-2 py-1 text-xs focus:outline-none"
+            className="rounded-lg px-2 py-1 text-xs"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-primary)',
+            }}
             value={action}
             onChange={e => setAction(e.target.value)}
           >
@@ -53,11 +81,16 @@ export function ConditionGate({ condition, onSave, onDelete }: Props) {
           </select>
           <button
             onClick={() => { if (expr) { onSave(expr, action); setEditing(false) } }}
-            className="bg-amber-500 text-white px-2 py-1 rounded text-xs hover:bg-amber-600"
+            className="px-2.5 py-1 rounded-lg text-white text-xs font-medium"
+            style={{ backgroundColor: 'var(--warning)' }}
           >
             Save
           </button>
-          <button onClick={() => setEditing(false)} className="text-gray-400 text-xs hover:text-gray-600">
+          <button
+            onClick={() => setEditing(false)}
+            className="text-xs px-2"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
             Cancel
           </button>
         </div>
@@ -66,11 +99,36 @@ export function ConditionGate({ condition, onSave, onDelete }: Props) {
   }
 
   return (
-    <div className="flex items-center justify-center py-2">
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-center gap-2 text-xs text-amber-700">
-        <span>if <code className="bg-amber-100 px-1 rounded">{condition!.expression}</code> → {condition!.action}</span>
-        <button onClick={() => { setExpr(condition!.expression); setAction(condition!.action); setEditing(true) }} className="text-amber-500 hover:text-amber-700 underline">edit</button>
-        <button onClick={onDelete} className="text-red-400 hover:text-red-600">✕</button>
+    <div className="flex items-center justify-center py-1.5">
+      <div
+        className="rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs"
+        style={{
+          backgroundColor: 'var(--warning-light)',
+          border: '1px solid var(--warning)',
+          color: 'var(--warning)',
+        }}
+      >
+        <span className="font-semibold">IF</span>
+        <code
+          className="px-1.5 py-0.5 rounded font-mono text-xs"
+          style={{ backgroundColor: 'var(--bg-secondary)' }}
+        >
+          {condition!.expression}
+        </code>
+        <span className="font-semibold">{'\u2192'} {condition!.action}</span>
+        <button
+          onClick={() => { setExpr(condition!.expression); setAction(condition!.action); setEditing(true) }}
+          className="underline ml-1 opacity-60 hover:opacity-100"
+        >
+          edit
+        </button>
+        <button
+          onClick={onDelete}
+          className="opacity-60 hover:opacity-100"
+          style={{ color: 'var(--danger)' }}
+        >
+          {'\u2715'}
+        </button>
       </div>
     </div>
   )

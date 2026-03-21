@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { workflowsApi } from '../api/workflows'
 import type { Workflow } from '../api/workflows'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 export default function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -30,30 +31,58 @@ export default function ProjectPage() {
   })
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto p-8">
-        <button
-          onClick={() => navigate('/')}
-          className="text-gray-500 mb-6 hover:text-gray-900 flex items-center gap-1"
-        >
-          ← Projects
-        </button>
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
+      <div className="max-w-4xl mx-auto px-8 py-10">
+        {/* Top nav */}
+        <div className="flex items-center justify-between mb-8">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-sm font-medium transition-colors"
+            style={{ color: 'var(--text-tertiary)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Projects
+          </button>
+          <ThemeToggle />
+        </div>
 
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Workflows</h1>
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Workflows</h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-tertiary)' }}>
+              {workflows.length} workflow{workflows.length !== 1 ? 's' : ''}
+            </p>
+          </div>
           <button
             onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium"
+            className="px-4 py-2.5 rounded-xl text-white font-medium text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+            style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}
           >
             + New Workflow
           </button>
         </div>
 
         {showForm && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
-            <h2 className="font-semibold text-gray-900 mb-4">New Workflow</h2>
+          <div
+            className="animate-fade-in rounded-xl p-6 mb-6"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-md)',
+            }}
+          >
+            <h2 className="font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>New Workflow</h2>
             <input
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-xl px-4 py-3 mb-4 text-sm"
+              style={{
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+              }}
               placeholder="Workflow name (e.g. Order Happy Flow)"
               value={name}
               onChange={e => setName(e.target.value)}
@@ -64,13 +93,15 @@ export default function ProjectPage() {
               <button
                 onClick={() => createMutation.mutate()}
                 disabled={!name || createMutation.isPending}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl text-white font-medium text-sm disabled:opacity-40"
+                style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}
               >
-                {createMutation.isPending ? 'Creating...' : 'Create'}
+                {createMutation.isPending ? 'Creating...' : 'Create Workflow'}
               </button>
               <button
                 onClick={() => { setShowForm(false); setName('') }}
-                className="text-gray-500 px-4 py-2 hover:text-gray-900"
+                className="px-4 py-2.5 rounded-xl text-sm font-medium"
+                style={{ color: 'var(--text-secondary)' }}
               >
                 Cancel
               </button>
@@ -79,30 +110,62 @@ export default function ProjectPage() {
         )}
 
         {isLoading ? (
-          <div className="text-center text-gray-400 mt-16">Loading...</div>
+          <div className="flex items-center justify-center py-20">
+            <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
+          </div>
         ) : (
           <div className="space-y-3">
             {workflows.map(wf => (
               <div
                 key={wf.id}
-                className="bg-white rounded-xl border border-gray-200 p-5 cursor-pointer hover:shadow-md transition-shadow flex justify-between items-center"
+                className="group animate-fade-in rounded-xl p-5 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex justify-between items-center"
+                style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
+                  boxShadow: 'var(--shadow)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.boxShadow = 'var(--shadow-md)'
+                  e.currentTarget.style.borderColor = 'var(--accent)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.boxShadow = 'var(--shadow)'
+                  e.currentTarget.style.borderColor = 'var(--border)'
+                }}
               >
-                <div onClick={() => navigate(`/projects/${projectId}/workflows/${wf.id}`)}>
-                  <h3 className="font-semibold text-gray-900">{wf.name}</h3>
-                  {wf.description && <p className="text-sm text-gray-500 mt-0.5">{wf.description}</p>}
+                <div className="flex-1 min-w-0" onClick={() => navigate(`/projects/${projectId}/workflows/${wf.id}`)}>
+                  <div className="flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)' }}>
+                      <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+                    </svg>
+                    <h3 className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{wf.name}</h3>
+                  </div>
+                  {wf.description && (
+                    <p className="text-sm mt-1 ml-6" style={{ color: 'var(--text-secondary)' }}>{wf.description}</p>
+                  )}
                 </div>
                 <button
-                  onClick={() => deleteMutation.mutate(wf.id)}
-                  className="text-gray-400 hover:text-red-500 ml-4 flex-shrink-0"
+                  onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(wf.id) }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg ml-3"
+                  style={{ color: 'var(--text-tertiary)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--danger)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
                 >
-                  ✕
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </button>
               </div>
             ))}
             {workflows.length === 0 && !showForm && (
-              <div className="text-center mt-16">
-                <p className="text-gray-400 text-lg">No workflows yet.</p>
-                <p className="text-gray-400 text-sm mt-1">Create a workflow to start chaining API steps.</p>
+              <div className="text-center py-20">
+                <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ backgroundColor: 'var(--accent-light)' }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--accent)' }}>
+                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <p className="text-lg font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>No workflows yet</p>
+                <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Create a workflow to start chaining API steps</p>
               </div>
             )}
           </div>

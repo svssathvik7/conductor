@@ -78,25 +78,41 @@ export default function RunPage() {
   const getStepStatus = (stepId: string): StepStatus =>
     stepStatuses[stepId] ?? 'pending'
 
-  const statusBadge = {
-    running: 'bg-blue-100 text-blue-700',
-    passed: 'bg-green-100 text-green-700',
-    failed: 'bg-red-100 text-red-700',
+  const statusConfig: Record<string, { bg: string; text: string; border: string }> = {
+    running: { bg: 'var(--accent-light)', text: 'var(--accent)', border: 'var(--accent)' },
+    passed:  { bg: 'var(--success-light)', text: 'var(--success)', border: 'var(--success)' },
+    failed:  { bg: 'var(--danger-light)', text: 'var(--danger)', border: 'var(--danger)' },
   }
 
+  const sc = statusConfig[runStatus]
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-2xl mx-auto p-8">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
+      <div className="max-w-2xl mx-auto px-8 py-10">
         <button
           onClick={() => navigate(`/projects/${projectId}/workflows/${workflowId}`)}
-          className="text-gray-500 mb-6 hover:text-gray-900"
+          className="flex items-center gap-2 text-sm font-medium mb-8 transition-colors"
+          style={{ color: 'var(--text-tertiary)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
         >
-          ← Back to Editor
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Back to Editor
         </button>
 
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Run</h1>
-          <span className={`px-4 py-1.5 rounded-full font-medium text-sm ${statusBadge[runStatus]}`}>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Run</h1>
+          <span
+            className="px-4 py-1.5 rounded-full font-semibold text-sm"
+            style={{
+              backgroundColor: sc.bg,
+              color: sc.text,
+              border: `1px solid ${sc.border}`,
+              animation: runStatus === 'running' ? 'pulse-dot 1.5s ease-in-out infinite' : undefined,
+            }}
+          >
             {runStatus.toUpperCase()}
           </span>
         </div>
@@ -110,12 +126,16 @@ export default function RunPage() {
                 status={getStepStatus(step.id)}
               />
               {idx < steps.length - 1 && (
-                <div className="flex justify-center text-gray-300 text-lg py-1">↓</div>
+                <div className="flex justify-center py-1">
+                  <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+                    <path d="M8 0v16M4 12l4 4 4-4" stroke="var(--border-hover)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
               )}
             </div>
           ))}
           {steps.length === 0 && (
-            <p className="text-center text-gray-400">No steps in this workflow.</p>
+            <p className="text-center text-sm" style={{ color: 'var(--text-tertiary)' }}>No steps in this workflow.</p>
           )}
         </div>
       </div>

@@ -13,43 +13,67 @@ export function StartupVarsModal({ variables, onRun, onClose }: Props) {
   )
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-xl">
-        <h2 className="font-bold text-lg text-gray-900 mb-2">Run Workflow</h2>
+    <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+      <div
+        className="rounded-2xl p-8 w-full max-w-md animate-fade-in"
+        style={{
+          backgroundColor: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-lg)',
+        }}
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--success-light)' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--success)' }}>
+              <polygon points="5 3 19 12 5 21 5 3" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <h2 className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>Run Workflow</h2>
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              {variables.length > 0 ? 'Set startup variables' : 'Ready to execute'}
+            </p>
+          </div>
+        </div>
+
         {variables.length > 0 ? (
-          <>
-            <p className="text-sm text-gray-500 mb-6">Set values for startup variables before running.</p>
-            <div className="space-y-4">
-              {variables.map(v => (
-                <div key={v.name}>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">
-                    {v.name}
-                    {v.description && (
-                      <span className="text-gray-400 font-normal ml-2 text-xs">— {v.description}</span>
-                    )}
-                  </label>
-                  <input
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    value={values[v.name] ?? ''}
-                    onChange={e => setValues(prev => ({ ...prev, [v.name]: e.target.value }))}
-                  />
-                </div>
-              ))}
-            </div>
-          </>
+          <div className="space-y-4 mb-6">
+            {variables.map(v => (
+              <div key={v.name}>
+                <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text-primary)' }}>
+                  {v.name}
+                  {v.description && <span className="font-normal ml-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>{'\u2014'} {v.description}</span>}
+                </label>
+                <input
+                  className="w-full rounded-xl px-4 py-2.5 text-sm"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}
+                  value={values[v.name] ?? ''}
+                  onChange={e => setValues(prev => ({ ...prev, [v.name]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
         ) : (
-          <p className="text-sm text-gray-500 mb-6">No startup variables defined. Ready to run.</p>
+          <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>No startup variables defined. Click run to execute.</p>
         )}
-        <div className="flex gap-3 mt-8">
+
+        <div className="flex gap-3">
           <button
             onClick={() => onRun(values)}
-            className="flex-1 bg-green-600 text-white py-3 rounded-xl font-medium hover:bg-green-700"
+            className="flex-1 py-3 rounded-xl text-white font-semibold text-sm transition-all hover:shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
           >
-            ▶ Run Workflow
+            {'\u25B6'} Run
           </button>
           <button
             onClick={onClose}
-            className="px-5 text-gray-500 hover:text-gray-900 rounded-xl"
+            className="px-5 py-3 rounded-xl text-sm font-medium"
+            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
           >
             Cancel
           </button>

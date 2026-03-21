@@ -94,32 +94,45 @@ export default function WorkflowEditor() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       {/* Top bar */}
-      <div className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm">
+      <div
+        className="px-6 py-4 flex justify-between items-center"
+        style={{
+          backgroundColor: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border)',
+          boxShadow: 'var(--shadow)',
+        }}
+      >
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(`/projects/${projectId}`)}
-            className="text-gray-500 hover:text-gray-900"
+            className="transition-colors"
+            style={{ color: 'var(--text-tertiary)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
           >
-            ←
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
           </button>
           <div>
-            <h1 className="font-semibold text-gray-900">{workflow?.name ?? 'Loading...'}</h1>
-            <p className="text-xs text-gray-400">Workflow Editor</p>
+            <h1 className="font-semibold" style={{ color: 'var(--text-primary)' }}>{workflow?.name ?? 'Loading...'}</h1>
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Workflow Editor</p>
           </div>
         </div>
         <button
           onClick={() => setShowRunModal(true)}
-          className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 font-medium"
+          className="px-5 py-2.5 rounded-xl text-white font-medium text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+          style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
         >
-          ▶ Run
+          {'\u25B6'} Run
         </button>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Canvas */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-8" style={{ backgroundColor: 'var(--bg-primary)' }}>
           <div className="max-w-xl mx-auto space-y-1">
             {steps.map((step, idx) => {
               const condition = conditions.find(c => c.after_step_id === step.id)
@@ -145,7 +158,11 @@ export default function WorkflowEditor() {
                         }}
                         onDelete={condition ? () => deleteCondition.mutate(condition.id) : undefined}
                       />
-                      <div className="flex justify-center text-gray-300 text-lg">↓</div>
+                      <div className="flex justify-center py-1">
+                        <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+                          <path d="M8 0v16M4 12l4 4 4-4" stroke="var(--border-hover)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
                     </>
                   )}
                 </div>
@@ -156,14 +173,26 @@ export default function WorkflowEditor() {
               <button
                 onClick={() => createStep.mutate()}
                 disabled={createStep.isPending}
-                className="w-full border-2 border-dashed border-gray-300 rounded-xl py-4 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-50"
+                className="w-full border-2 border-dashed rounded-xl py-4 text-sm font-medium transition-all duration-200 disabled:opacity-50"
+                style={{
+                  borderColor: 'var(--border)',
+                  color: 'var(--text-tertiary)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'var(--accent)'
+                  e.currentTarget.style.color = 'var(--accent)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'var(--border)'
+                  e.currentTarget.style.color = 'var(--text-tertiary)'
+                }}
               >
                 + Add Step
               </button>
             </div>
 
             {steps.length === 0 && (
-              <p className="text-center text-gray-400 text-sm mt-4">
+              <p className="text-center text-sm mt-4" style={{ color: 'var(--text-tertiary)' }}>
                 Add your first step to start building this workflow.
               </p>
             )}
@@ -172,7 +201,7 @@ export default function WorkflowEditor() {
 
         {/* Config panel */}
         {selectedStep && (
-          <div className="w-96 bg-white border-l flex flex-col overflow-hidden">
+          <div className="w-96 flex flex-col overflow-hidden" style={{ borderLeft: '1px solid var(--border)' }}>
             <StepConfigPanel
               step={selectedStep}
               availableVars={getAvailableVars(steps.findIndex(s => s.id === selectedStep.id))}

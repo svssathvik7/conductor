@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { projectsApi } from '../api/projects'
 import { ProjectCard } from '../components/ProjectCard'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -32,26 +33,53 @@ export default function Dashboard() {
   })
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto p-8">
-        <div className="flex justify-between items-center mb-8">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
+      <div className="max-w-6xl mx-auto px-8 py-10">
+        {/* Header */}
+        <div className="flex justify-between items-start mb-10">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Conductor</h1>
-            <p className="text-gray-500 mt-1">Visual API workflow tester</p>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-lg" style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}>
+                C
+              </div>
+              <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                Conductor
+              </h1>
+            </div>
+            <p className="text-sm ml-[52px]" style={{ color: 'var(--text-tertiary)' }}>
+              Visual API workflow tester
+            </p>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium"
-          >
-            + New Project
-          </button>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-4 py-2.5 rounded-xl text-white font-medium text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+              style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}
+            >
+              + New Project
+            </button>
+          </div>
         </div>
 
+        {/* Create form */}
         {showForm && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
-            <h2 className="font-semibold text-gray-900 mb-4">New Project</h2>
+          <div
+            className="animate-fade-in rounded-xl p-6 mb-8"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-md)',
+            }}
+          >
+            <h2 className="font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>New Project</h2>
             <input
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-xl px-4 py-3 mb-3 text-sm"
+              style={{
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+              }}
               placeholder="Project name"
               value={name}
               onChange={e => setName(e.target.value)}
@@ -59,7 +87,12 @@ export default function Dashboard() {
               autoFocus
             />
             <input
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-xl px-4 py-3 mb-4 text-sm"
+              style={{
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+              }}
               placeholder="Description (optional)"
               value={desc}
               onChange={e => setDesc(e.target.value)}
@@ -68,13 +101,15 @@ export default function Dashboard() {
               <button
                 onClick={() => createMutation.mutate()}
                 disabled={!name || createMutation.isPending}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 rounded-xl text-white font-medium text-sm disabled:opacity-40 transition-all"
+                style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}
               >
-                {createMutation.isPending ? 'Creating...' : 'Create'}
+                {createMutation.isPending ? 'Creating...' : 'Create Project'}
               </button>
               <button
                 onClick={() => { setShowForm(false); setName(''); setDesc('') }}
-                className="text-gray-500 px-4 py-2 hover:text-gray-900"
+                className="px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                style={{ color: 'var(--text-secondary)' }}
               >
                 Cancel
               </button>
@@ -82,8 +117,11 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Projects grid */}
         {isLoading ? (
-          <div className="text-center text-gray-400 mt-16">Loading...</div>
+          <div className="flex items-center justify-center py-20">
+            <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -98,9 +136,14 @@ export default function Dashboard() {
               ))}
             </div>
             {projects.length === 0 && !showForm && (
-              <div className="text-center mt-16">
-                <p className="text-gray-400 text-lg">No projects yet.</p>
-                <p className="text-gray-400 text-sm mt-1">Create a project to start building API workflows.</p>
+              <div className="text-center py-20">
+                <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ backgroundColor: 'var(--accent-light)' }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--accent)' }}>
+                    <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <p className="text-lg font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>No projects yet</p>
+                <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Create a project to start building API workflows</p>
               </div>
             )}
           </>
