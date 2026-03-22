@@ -15,6 +15,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 use chrono::Utc;
 use crate::engine::runner::{run_workflow, RunEvent};
+use crate::models::workflow::StartupVariable;
 
 pub fn router() -> Router<SqlitePool> {
     Router::new()
@@ -27,10 +28,16 @@ pub fn router() -> Router<SqlitePool> {
 #[derive(serde::Deserialize)]
 pub struct StartRunPayload {
     pub startup_variable_values: Option<HashMap<String, String>>,
+    pub profile_id: Option<String>,
 }
 
 /// Creates the run record and returns a run_id.
 /// Execution is deferred to stream_run so events can be streamed in real time.
+///
+/// Variable merge order:
+/// 1. Workflow startup variable defaults
+/// 2. Profile variables (if profile_id provided)
+/// 3. Explicit startup_variable_values overrides
 async fn start_run(
     State(pool): State<SqlitePool>,
     Path(workflow_id): Path<String>,
@@ -38,8 +45,48 @@ async fn start_run(
 ) -> (StatusCode, Json<Value>) {
     let run_id = Uuid::new_v4().to_string();
     let started_at = Utc::now().to_rfc3339();
-    let startup_vars = payload.startup_variable_values.unwrap_or_default();
-    let vars_json = serde_json::to_string(&startup_vars).unwrap_or_else(|_| "{}".to_string());
+
+    let mut final_vars: HashMap<String, String> = HashMap::new();
+
+    // 1. Load workflow startup variable defaults
+    let workflow_row = sqlx::query_as::<_, (String,)>(
+        "SELECT startup_variables FROM workflows WHERE id = ?",
+    )
+    .bind(&workflow_id)
+    .fetch_optional(&pool)
+    .await
+    .unwrap();
+
+    if let Some((sv_json,)) = workflow_row {
+        let defaults: Vec<StartupVariable> =
+            serde_json::from_str(&sv_json).unwrap_or_default();
+        for sv in &defaults {
+            final_vars.insert(sv.name.clone(), sv.default_value.clone());
+        }
+    }
+
+    // 2. Merge profile variables if profile_id provided
+    if let Some(ref pid) = payload.profile_id {
+        let profile = sqlx::query_as::<_, (String,)>(
+            "SELECT variables FROM environment_profiles WHERE id = ?",
+        )
+        .bind(pid)
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        if let Some((vars_json,)) = profile {
+            let profile_vars: HashMap<String, String> =
+                serde_json::from_str(&vars_json).unwrap_or_default();
+            final_vars.extend(profile_vars);
+        }
+    }
+
+    // 3. Merge explicit overrides
+    if let Some(overrides) = payload.startup_variable_values {
+        final_vars.extend(overrides);
+    }
+
+    let vars_json = serde_json::to_string(&final_vars).unwrap_or_else(|_| "{}".to_string());
 
     sqlx::query(
         "INSERT INTO workflow_runs (id, workflow_id, started_at, status, startup_variable_values, step_results) \

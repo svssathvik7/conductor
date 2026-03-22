@@ -18,9 +18,10 @@ export interface RunResult {
 }
 
 export const runsApi = {
-  start: (workflowId: string, startupVars: Record<string, string>) =>
+  start: (workflowId: string, startupVars: Record<string, string>, profileId?: string) =>
     api.post<{ run_id: string }>(`/api/workflows/${workflowId}/run`, {
       startup_variable_values: startupVars,
+      profile_id: profileId,
     }).then(r => r.data),
   get: (runId: string) =>
     api.get<RunResult>(`/api/runs/${runId}`).then(r => r.data),

@@ -13,6 +13,7 @@ import { ConditionGate } from '../components/ConditionGate'
 import { StepConfigPanel } from '../components/StepConfigPanel'
 import { StartupVarsModal } from '../components/StartupVarsModal'
 import { RunHistory } from '../components/RunHistory'
+import { ProfileManager } from '../components/ProfileManager'
 
 export default function WorkflowEditor() {
   const { projectId, workflowId } = useParams<{ projectId: string; workflowId: string }>()
@@ -72,8 +73,8 @@ export default function WorkflowEditor() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['conditions', workflowId] }),
   })
 
-  const handleRun = async (vars: Record<string, string>) => {
-    const { run_id } = await runsApi.start(workflowId!, vars)
+  const handleRun = async (vars: Record<string, string>, profileId?: string) => {
+    const { run_id } = await runsApi.start(workflowId!, vars, profileId)
     navigate(`/projects/${projectId}/workflows/${workflowId}/run-view/${run_id}`)
   }
 
@@ -214,15 +215,17 @@ export default function WorkflowEditor() {
           </div>
         )}
         <RunHistory />
+        <ProfileManager workflowId={workflowId!} />
       </div>
 
       {showRunModal && workflow && (
         <StartupVarsModal
+          workflowId={workflowId!}
           variables={(() => {
             try { return JSON.parse(workflow.startup_variables ?? '[]') as StartupVariable[] }
             catch { return [] }
           })()}
-          onRun={vars => { setShowRunModal(false); handleRun(vars) }}
+          onRun={(vars, profileId) => { setShowRunModal(false); handleRun(vars, profileId) }}
           onClose={() => setShowRunModal(false)}
         />
       )}

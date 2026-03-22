@@ -1,16 +1,46 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import type { StartupVariable } from '../api/workflows'
+import { profilesApi } from '../api/profiles'
+import type { EnvironmentProfile } from '../api/profiles'
 
 interface Props {
+  workflowId: string
   variables: StartupVariable[]
-  onRun: (values: Record<string, string>) => void
+  onRun: (values: Record<string, string>, profileId?: string) => void
   onClose: () => void
 }
 
-export function StartupVarsModal({ variables, onRun, onClose }: Props) {
+export function StartupVarsModal({ workflowId, variables, onRun, onClose }: Props) {
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(variables.map(v => [v.name, v.default_value]))
   )
+  const [selectedProfileId, setSelectedProfileId] = useState<string>('')
+
+  const { data: profiles = [] } = useQuery<EnvironmentProfile[]>({
+    queryKey: ['profiles', workflowId],
+    queryFn: () => profilesApi.list(workflowId),
+  })
+
+  // When a profile is selected, merge its variables over defaults
+  useEffect(() => {
+    // Start from defaults
+    const merged: Record<string, string> = Object.fromEntries(
+      variables.map(v => [v.name, v.default_value])
+    )
+
+    if (selectedProfileId) {
+      const profile = profiles.find(p => p.id === selectedProfileId)
+      if (profile) {
+        try {
+          const profileVars: Record<string, string> = JSON.parse(profile.variables)
+          Object.assign(merged, profileVars)
+        } catch { /* ignore parse errors */ }
+      }
+    }
+
+    setValues(merged)
+  }, [selectedProfileId, profiles, variables])
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
@@ -35,6 +65,30 @@ export function StartupVarsModal({ variables, onRun, onClose }: Props) {
             </p>
           </div>
         </div>
+
+        {/* Profile selector */}
+        {profiles.length > 0 && (
+          <div className="mb-5">
+            <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text-primary)' }}>
+              Environment Profile
+            </label>
+            <select
+              className="w-full rounded-xl px-4 py-2.5 text-sm"
+              style={{
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+              }}
+              value={selectedProfileId}
+              onChange={e => setSelectedProfileId(e.target.value)}
+            >
+              <option value="">No profile</option>
+              {profiles.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {variables.length > 0 ? (
           <div className="space-y-4 mb-6">
@@ -64,7 +118,7 @@ export function StartupVarsModal({ variables, onRun, onClose }: Props) {
 
         <div className="flex gap-3">
           <button
-            onClick={() => onRun(values)}
+            onClick={() => onRun(values, selectedProfileId || undefined)}
             className="flex-1 py-3 rounded-xl text-white font-semibold text-sm transition-all hover:shadow-lg"
             style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
           >
