@@ -74,16 +74,6 @@ export default function WorkflowEditor() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['conditions', workflowId] }),
   })
 
-  const handleExport = async () => {
-    const blob = await yamlApi.exportWorkflow(workflowId!)
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${workflow?.name ?? 'workflow'}.yaml`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   const handleRun = async (vars: Record<string, string>, profileId?: string) => {
     const { run_id } = await runsApi.start(workflowId!, vars, profileId)
     navigate(`/projects/${projectId}/workflows/${workflowId}/run-view/${run_id}`)
