@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { workflowsApi } from '../api/workflows'
 import type { Workflow } from '../api/workflows'
+import { yamlApi } from '../api/yaml'
 import { ThemeToggle } from '../components/ThemeToggle'
 
 export default function ProjectPage() {
@@ -24,6 +25,21 @@ export default function ProjectPage() {
       navigate(`/projects/${projectId}/workflows/${wf.id}`)
     },
   })
+
+  const handleImport = async () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.yaml,.yml'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const content = await file.text()
+      const workflow = await yamlApi.importWorkflow(projectId!, content)
+      qc.invalidateQueries({ queryKey: ['workflows', projectId] })
+      navigate(`/projects/${projectId}/workflows/${workflow.id}`)
+    }
+    input.click()
+  }
 
   const deleteMutation = useMutation({
     mutationFn: workflowsApi.delete,
@@ -57,13 +73,39 @@ export default function ProjectPage() {
               {workflows.length} workflow{workflows.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="px-4 py-2.5 rounded-xl text-white font-medium text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
-            style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}
-          >
-            + New Workflow
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleImport}
+              className="px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+              style={{
+                backgroundColor: 'var(--bg-secondary)',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = 'var(--accent)'
+                e.currentTarget.style.color = 'var(--accent)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'var(--border)'
+                e.currentTarget.style.color = 'var(--text-secondary)'
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }}>
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              Import YAML
+            </button>
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-4 py-2.5 rounded-xl text-white font-medium text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+              style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}
+            >
+              + New Workflow
+            </button>
+          </div>
         </div>
 
         {showForm && (
